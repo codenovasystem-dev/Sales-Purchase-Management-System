@@ -24,6 +24,8 @@ ChartJS.register(
 );
 
 function Dashboard() {
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const WS_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/^http/, 'ws');
   const [summary, setSummary] = useState({});
   const [chartData, setChartData] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -53,8 +55,8 @@ function Dashboard() {
       const headers = { 'Authorization': `Bearer ${token}` };
 
       const [summaryRes, chartRes] = await Promise.all([
-        fetch('http://localhost:5000/api/dashboard/summary', { headers }),
-        fetch('http://localhost:5000/api/dashboard/sales-chart', { headers })
+        fetch(`${API_BASE_URL}/api/dashboard/summary`, { headers }),
+        fetch(`${API_BASE_URL}/api/dashboard/sales-chart`, { headers })
       ]);
 
       if (summaryRes.ok) {
@@ -77,7 +79,7 @@ function Dashboard() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/inventory', {
+      const response = await fetch(`${API_BASE_URL}/api/inventory`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -96,7 +98,7 @@ function Dashboard() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/forecast', {
+      const response = await fetch(`${API_BASE_URL}/api/forecast`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -115,7 +117,7 @@ function Dashboard() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/orders', {
+      const response = await fetch(`${API_BASE_URL}/api/orders`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -134,7 +136,7 @@ function Dashboard() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/orders', {
+      const response = await fetch(`${API_BASE_URL}/api/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -185,7 +187,7 @@ function Dashboard() {
 
   // WebSocket connection for real-time updates
   useEffect(() => {
-    const websocket = new WebSocket('ws://localhost:5000');
+    const websocket = new WebSocket(`${WS_BASE_URL}`);
 
     websocket.onopen = () => {
       console.log('WebSocket connected');

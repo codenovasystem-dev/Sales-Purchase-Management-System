@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Dashboard from "./Dashboard";
 
 function App() {
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
   const [user, setUser] = useState(null);
   const [isLogin, setIsLogin] = useState(true);
   const [authError, setAuthError] = useState("");
@@ -25,7 +26,7 @@ function App() {
     const body = isLogin ? { email, password } : { email, password, role };
 
     try {
-      const res = await fetch(`http://localhost:5000${endpoint}`, {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -45,7 +46,7 @@ function App() {
         setAuthError(data.message || 'Authentication failed. Check email/password and backend status.');
       }
     } catch (error) {
-      setAuthError('Network error. Please confirm the backend is running on http://localhost:5000.');
+      setAuthError(`Network error. Please confirm the backend is running on ${API_BASE_URL}.`);
     } finally {
       setIsSubmitting(false);
     }

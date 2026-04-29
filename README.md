@@ -107,6 +107,37 @@ The application will be available at:
 | Analyst | analyst@salesiq.com | password |
 | Viewer | viewer@salesiq.com | password |
 
+## Free Deployment (Vercel + Render)
+
+### Frontend with Vercel
+1. Go to https://vercel.com and login with GitHub.
+2. Create a new project and import this repo.
+3. Set the project root to `client`.
+4. Use build command: `npm install && npm run build`.
+5. Use output directory: `build`.
+6. Add environment variable:
+   - `REACT_APP_API_URL=https://<your-backend-url>`
+
+### Backend with Render
+1. Go to https://render.com and login with GitHub.
+2. Create a new Web Service.
+3. Select the `server` directory as the root.
+4. Set the build command to `npm install`.
+5. Set the start command to `npm start`.
+6. Add environment variables:
+   - `DB_HOST` = your MySQL host
+   - `DB_USER` = your MySQL user
+   - `DB_PASSWORD` = your MySQL password
+   - `DB_NAME` = salesiq
+   - `JWT_SECRET` = your-secret-key
+7. If using Render's managed database, connect it and update `DB_HOST`/`DB_USER`/`DB_PASSWORD` accordingly.
+
+### Notes
+- Make sure the frontend `REACT_APP_API_URL` points to the deployed backend URL.
+- The backend uses `process.env.PORT` when deployed.
+- For MySQL, you can use Render/Railway managed MySQL or PlanetScale.
+- This repo includes `render.yaml` for direct Render deployment of frontend and backend from the same repository.
+
 ## API Endpoints
 
 ### Authentication
