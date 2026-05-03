@@ -32,6 +32,15 @@ const DEMO_USERS = [
   ["viewer@salesiq.com", DEMO_PASSWORD_HASH, "viewer"]
 ];
 const DEMO_USER_EMAILS = new Set(DEMO_USERS.map(([email]) => email));
+const isDatabaseSetupError = (error) =>
+  error && (
+    error.code === "42P01" ||
+    error.code === "3D000" ||
+    /relation .* does not exist/i.test(error.message) ||
+    /database .* does not exist/i.test(error.message)
+  );
+
+let databaseBootstrapPromise = null;
 
 const getUserByEmail = async (email) => {
   const rows = await db.query("SELECT * FROM users WHERE email = ?", [email]);
@@ -53,6 +62,23 @@ const ensureDemoUsers = async () => {
     console.error("Failed to seed demo users:", error.message);
     return false;
   }
+};
+
+const bootstrapDatabase = async () => {
+  if (!databaseBootstrapPromise) {
+    databaseBootstrapPromise = (async () => {
+      try {
+        await db.initializeSchema();
+        await ensureDemoUsers();
+        console.log("Database schema is ready");
+        return true;
+      } finally {
+        databaseBootstrapPromise = null;
+      }
+    })();
+  }
+
+  return databaseBootstrapPromise;
 };
 
 const primeDemoUsers = async (attempts = 5, delayMs = 2000) => {
@@ -124,7 +150,18 @@ app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    let user = await getUserByEmail(email);
+    let user;
+
+    try {
+      user = await getUserByEmail(email);
+    } catch (error) {
+      if (!isDatabaseSetupError(error)) {
+        throw error;
+      }
+
+      await bootstrapDatabase();
+      user = await getUserByEmail(email);
+    }
 
     if (!user && DEMO_USER_EMAILS.has(email)) {
       await ensureDemoUsers();
@@ -146,6 +183,22 @@ app.post("/api/login", async (req, res) => {
     res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
   } catch (error) {
     console.error("Login failed:", error.message);
+
+    if (isDatabaseSetupError(error)) {
+      try {
+        await bootstrapDatabase();
+        return res.status(503).json({
+          message: "Database was empty and is being initialized. Please try logging in again in a few seconds."
+        });
+      } catch (bootstrapError) {
+        console.error("Database bootstrap failed:", bootstrapError.message);
+      }
+
+      return res.status(503).json({
+        message: "Database is not initialized. Check Render DATABASE_URL access and import database/schema.sql if auto-setup does not complete."
+      });
+    }
+
     res.status(500).json({ message: "Unable to complete login" });
   }
 });
@@ -503,6 +556,9 @@ setInterval(() => {
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  bootstrapDatabase().catch((error) => {
+    console.error("Startup bootstrap failed:", error.message);
+  });
   primeDemoUsers();
 });
 

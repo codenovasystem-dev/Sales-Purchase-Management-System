@@ -1,3 +1,5 @@
+const fs = require("fs/promises");
+const path = require("path");
 const { Pool } = require("pg");
 require("dotenv").config();
 
@@ -102,6 +104,14 @@ const db = {
       isConnected = false;
       throw error;
     });
+  },
+
+  async initializeSchema() {
+    const schemaPath = path.join(__dirname, "..", "database", "schema.sql");
+    const schemaSql = await fs.readFile(schemaPath, "utf8");
+    await pool.query(schemaSql);
+    isConnected = true;
+    return true;
   },
 
   isConnected() {
