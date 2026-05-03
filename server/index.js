@@ -34,17 +34,17 @@ const DEMO_USERS = [
 const DEMO_USER_EMAILS = new Set(DEMO_USERS.map(([email]) => email));
 
 const getUserByEmail = async (email) => {
-  const [rows] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
+  const rows = await db.query("SELECT * FROM users WHERE email = ?", [email]);
   return rows[0] || null;
 };
 
 const ensureDemoUsers = async () => {
   try {
-    await db.promise().query(
+    await db.query(
       `INSERT INTO users (email, password, role) VALUES ?
-       ON DUPLICATE KEY UPDATE
-         password = VALUES(password),
-         role = VALUES(role)`,
+       ON CONFLICT (email) DO UPDATE SET
+         password = EXCLUDED.password,
+         role = EXCLUDED.role`,
       [DEMO_USERS]
     );
     console.log("Demo users are ready");
@@ -102,7 +102,7 @@ app.post("/api/register", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
 
     db.query(
-      "INSERT INTO users (email, password, role) VALUES (?, ?, ?)",
+      "INSERT INTO users (email, password, role) VALUES (?, ?, ?) RETURNING id",
       [email, hash, role],
       (err, result) => {
         if (err) return res.status(400).json({ message: err.message });
@@ -206,7 +206,7 @@ app.get("/api/dashboard/sales-chart", authenticateToken, (req, res) => {
   db.query(`
     SELECT date, total_revenue, total_orders
     FROM sales_summary
-    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
     ORDER BY date ASC
   `, (err, result) => {
     if (err) return res.status(500).json({ message: err.message });
@@ -252,7 +252,7 @@ app.put("/api/inventory/:id", authenticateToken, authorizeRole(['admin', 'manage
 app.get("/api/forecast", authenticateToken, authorizeRole(['admin', 'manager', 'analyst']), (req, res) => {
   db.query(`
     SELECT * FROM revenue_forecast
-    WHERE forecast_date >= CURDATE()
+    WHERE forecast_date >= CURRENT_DATE
     ORDER BY forecast_date ASC
     LIMIT 30
   `, (err, result) => {
@@ -265,7 +265,10 @@ app.get("/api/forecast", authenticateToken, authorizeRole(['admin', 'manager', '
 app.get("/api/orders", authenticateToken, authorizeRole(['admin', 'manager']), (req, res) => {
   db.query(`
     SELECT o.*, 
-           GROUP_CONCAT(CONCAT(p.name, ' (', oi.quantity, ' x ₹', oi.unit_price, ')')) as items
+           STRING_AGG(
+             p.name || ' (' || oi.quantity || ' x Rs ' || oi.unit_price || ')',
+             ', '
+           ) as items
     FROM orders o
     LEFT JOIN order_items oi ON o.id = oi.order_id
     LEFT JOIN products p ON oi.product_id = p.id
@@ -347,7 +350,7 @@ app.post("/api/orders", authenticateToken, authorizeRole(['admin', 'manager']), 
     
     // Create the order
     db.query(
-      'INSERT INTO orders (customer_email, total_amount, status) VALUES (?, ?, ?)',
+      'INSERT INTO orders (customer_email, total_amount, status) VALUES (?, ?, ?) RETURNING id',
       [customer_email, totalAmount, 'pending'],
       (err, result) => {
         if (err) return res.status(500).json({ message: err.message });
@@ -390,10 +393,10 @@ app.post("/api/orders", authenticateToken, authorizeRole(['admin', 'manager']), 
                 db.query(
                   `INSERT INTO sales_summary (date, total_revenue, total_orders, total_customers)
                    VALUES (?, ?, ?, ?)
-                   ON DUPLICATE KEY UPDATE
-                     total_revenue = total_revenue + VALUES(total_revenue),
-                     total_orders = total_orders + VALUES(total_orders),
-                     total_customers = total_customers + VALUES(total_customers)`,
+                   ON CONFLICT (date) DO UPDATE SET
+                     total_revenue = sales_summary.total_revenue + EXCLUDED.total_revenue,
+                     total_orders = sales_summary.total_orders + EXCLUDED.total_orders,
+                     total_customers = sales_summary.total_customers + EXCLUDED.total_customers`,
                   [today, totalAmount, 1, 1],
                   (summaryErr) => {
                     if (summaryErr) {
@@ -471,10 +474,10 @@ setInterval(() => {
   db.query(`
     INSERT INTO sales_summary (date, total_revenue, total_orders, total_customers)
     VALUES (?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE
-    total_revenue = total_revenue + VALUES(total_revenue),
-    total_orders = total_orders + VALUES(total_orders),
-    total_customers = total_customers + VALUES(total_customers)
+    ON CONFLICT (date) DO UPDATE SET
+    total_revenue = sales_summary.total_revenue + EXCLUDED.total_revenue,
+    total_orders = sales_summary.total_orders + EXCLUDED.total_orders,
+    total_customers = sales_summary.total_customers + EXCLUDED.total_customers
   `, [today, revenueIncrement, ordersIncrement, Math.floor(ordersIncrement * 0.8)], (err) => {
     if (err) {
       console.error("Sales simulation skipped:", err.message);
