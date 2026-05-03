@@ -4,7 +4,8 @@ import LandingPage from "./LandingPage";
 
 function App() {
   const isGitHubPages = window.location.hostname.endsWith("github.io");
-  const API_BASE_URL = process.env.REACT_APP_API_URL || (isGitHubPages ? "" : "http://localhost:5000");
+  const pagesApiUrl = "https://sales-purchase-management-system.onrender.com";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || (isGitHubPages ? pagesApiUrl : "http://localhost:5000");
   const [user, setUser] = useState(null);
   const [isLogin, setIsLogin] = useState(true);
   const [authError, setAuthError] = useState("");
