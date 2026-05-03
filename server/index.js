@@ -24,6 +24,28 @@ app.use(cors({
 app.use(express.json());
 
 const SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const DEMO_PASSWORD_HASH = "$2b$10$EX12IfSV7tR6E82lfHXpLuDumgRcwlMzaiw1FQYbzfQsXP3a2Zooe";
+const DEMO_USERS = [
+  ["admin@salesiq.com", DEMO_PASSWORD_HASH, "admin"],
+  ["manager@salesiq.com", DEMO_PASSWORD_HASH, "manager"],
+  ["analyst@salesiq.com", DEMO_PASSWORD_HASH, "analyst"],
+  ["viewer@salesiq.com", DEMO_PASSWORD_HASH, "viewer"]
+];
+
+const ensureDemoUsers = async () => {
+  try {
+    await db.promise().query(
+      `INSERT INTO users (email, password, role) VALUES ?
+       ON DUPLICATE KEY UPDATE
+         password = VALUES(password),
+         role = VALUES(role)`,
+      [DEMO_USERS]
+    );
+    console.log("Demo users are ready");
+  } catch (error) {
+    console.error("Failed to seed demo users:", error.message);
+  }
+};
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -445,6 +467,7 @@ setInterval(() => {
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  ensureDemoUsers();
 });
 
 wss = new WebSocket.Server({ server });
