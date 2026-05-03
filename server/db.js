@@ -4,6 +4,7 @@ const { Pool } = require("pg");
 require("dotenv").config();
 
 let isConnected = false;
+let lastConnectionError = null;
 
 const connectionString = process.env.DATABASE_URL;
 const shouldUseSsl = process.env.DB_SSL === "true" || Boolean(connectionString);
@@ -67,6 +68,7 @@ const execute = async (sql, values = []) => {
   const query = formatQuery(sql, values);
   const result = await pool.query(query);
   isConnected = true;
+  lastConnectionError = null;
 
   const rows = result.rows || [];
   rows.affectedRows = result.rowCount || 0;
@@ -85,6 +87,7 @@ const db = {
     const cb = hasValues ? callback : values;
     const promise = execute(sql, params).catch((error) => {
       isConnected = false;
+      lastConnectionError = error;
       console.error("PostgreSQL query error:", error.message);
       throw error;
     });
@@ -99,9 +102,11 @@ const db = {
   testConnection() {
     return pool.query("SELECT 1").then(() => {
       isConnected = true;
+      lastConnectionError = null;
       return true;
     }).catch((error) => {
       isConnected = false;
+      lastConnectionError = error;
       throw error;
     });
   },
@@ -116,6 +121,14 @@ const db = {
 
   isConnected() {
     return isConnected;
+  },
+
+  getLastConnectionError() {
+    return lastConnectionError;
+  },
+
+  getConnectionMode() {
+    return connectionString ? "DATABASE_URL" : "DB_HOST";
   }
 };
 

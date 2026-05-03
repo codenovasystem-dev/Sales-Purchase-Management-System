@@ -210,12 +210,16 @@ app.get("/health", async (_req, res) => {
     await db.testConnection();
     res.status(200).json({
       status: "ok",
-      database: "connected"
+      database: "connected",
+      connectionMode: db.getConnectionMode()
     });
   } catch (_error) {
+    const lastError = db.getLastConnectionError();
     res.status(503).json({
       status: "degraded",
-      database: "disconnected"
+      database: "disconnected",
+      connectionMode: db.getConnectionMode(),
+      reason: lastError ? lastError.message : "Unknown database connection error"
     });
   }
 });
