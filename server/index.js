@@ -31,6 +31,12 @@ const DEMO_USERS = [
   ["analyst@salesiq.com", DEMO_PASSWORD_HASH, "analyst"],
   ["viewer@salesiq.com", DEMO_PASSWORD_HASH, "viewer"]
 ];
+const DEMO_USER_EMAILS = new Set(DEMO_USERS.map(([email]) => email));
+
+const getUserByEmail = async (email) => {
+  const [rows] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
+  return rows[0] || null;
+};
 
 const ensureDemoUsers = async () => {
   try {
@@ -42,8 +48,23 @@ const ensureDemoUsers = async () => {
       [DEMO_USERS]
     );
     console.log("Demo users are ready");
+    return true;
   } catch (error) {
     console.error("Failed to seed demo users:", error.message);
+    return false;
+  }
+};
+
+const primeDemoUsers = async (attempts = 5, delayMs = 2000) => {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const seeded = await ensureDemoUsers();
+    if (seeded) {
+      return;
+    }
+
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 };
 
@@ -99,22 +120,34 @@ app.post("/api/register", async (req, res) => {
 });
 
 // Login
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
-  db.query("SELECT * FROM users WHERE email=?", [email], async (err, result) => {
-    if (err || result.length === 0) return res.status(400).json({ message: "User not found" });
+  try {
+    let user = await getUserByEmail(email);
 
-    const user = result[0];
+    if (!user && DEMO_USER_EMAILS.has(email)) {
+      await ensureDemoUsers();
+      user = await getUserByEmail(email);
+    }
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
 
     const match = await bcrypt.compare(password, user.password);
 
-    if (!match) return res.status(400).json({ message: "Wrong password" });
+    if (!match) {
+      return res.status(400).json({ message: "Wrong password" });
+    }
 
     const token = jwt.sign({ id: user.id, role: user.role }, SECRET);
 
     res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
-  });
+  } catch (error) {
+    console.error("Login failed:", error.message);
+    res.status(500).json({ message: "Unable to complete login" });
+  }
 });
 
 /* ---------------- DASHBOARD DATA ---------------- */
@@ -467,7 +500,7 @@ setInterval(() => {
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  ensureDemoUsers();
+  primeDemoUsers();
 });
 
 wss = new WebSocket.Server({ server });

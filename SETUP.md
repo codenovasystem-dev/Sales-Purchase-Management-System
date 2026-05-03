@@ -154,6 +154,15 @@ mysql> USE salesiq;
 mysql> SHOW TABLES;
 ```
 
+### `"User not found"` when logging in
+```bash
+# Confirm the users table has demo accounts
+mysql -u root -p -D salesiq
+mysql> SELECT email, role FROM users;
+```
+
+If the demo users are missing, make sure `database/schema.sql` was imported and then restart the backend. The server now retries demo-user seeding on startup, and logging in with a demo email will trigger another seed attempt automatically.
+
 ### "Cannot find module 'express'"
 ```bash
 # Reinstall dependencies
