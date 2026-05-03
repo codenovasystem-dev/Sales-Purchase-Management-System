@@ -98,7 +98,10 @@ app.post("/api/login", (req, res) => {
 /* ---------------- DASHBOARD DATA ---------------- */
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+  res.status(db.isConnected() ? 200 : 503).json({
+    status: db.isConnected() ? "ok" : "degraded",
+    database: db.isConnected() ? "connected" : "disconnected"
+  });
 });
 
 // Get dashboard summary
@@ -392,6 +395,10 @@ let wss;
 
 // Simulate live sales updates
 setInterval(() => {
+  if (!db.isConnected()) {
+    return;
+  }
+
   const today = new Date().toISOString().split('T')[0];
 
   // Random sales increment
@@ -405,19 +412,24 @@ setInterval(() => {
     total_revenue = total_revenue + VALUES(total_revenue),
     total_orders = total_orders + VALUES(total_orders),
     total_customers = total_customers + VALUES(total_customers)
-  `, [today, revenueIncrement, ordersIncrement, Math.floor(ordersIncrement * 0.8)]);
+  `, [today, revenueIncrement, ordersIncrement, Math.floor(ordersIncrement * 0.8)], (err) => {
+    if (err) {
+      console.error("Sales simulation skipped:", err.message);
+      return;
+    }
 
-  // Broadcast update to WebSocket clients
-  if (wss) {
-    wss.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          type: 'SALES_UPDATE',
-          data: { revenueIncrement, ordersIncrement, timestamp: new Date() }
-        }));
-      }
-    });
-  }
+    // Broadcast update to WebSocket clients
+    if (wss) {
+      wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'SALES_UPDATE',
+            data: { revenueIncrement, ordersIncrement, timestamp: new Date() }
+          }));
+        }
+      });
+    }
+  });
 }, 5000); // Update every 5 seconds
 
 /* ---------------- WEBSOCKET SERVER ---------------- */

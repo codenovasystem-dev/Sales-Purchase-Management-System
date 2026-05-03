@@ -1,6 +1,8 @@
 const mysql = require("mysql2");
 require("dotenv").config();
 
+let isConnected = false;
+
 const db = mysql.createConnection({
   host: process.env.DB_HOST || "localhost",
   port: Number(process.env.DB_PORT || 3306),
@@ -11,10 +13,20 @@ const db = mysql.createConnection({
 
 db.connect((err) => {
   if (err) {
+    isConnected = false;
     console.error("MySQL connection error:", err.message);
     return;
   }
+
+  isConnected = true;
   console.log("MySQL Connected");
 });
+
+db.on("error", (err) => {
+  isConnected = false;
+  console.error("MySQL runtime error:", err.message);
+});
+
+db.isConnected = () => isConnected;
 
 module.exports = db;
