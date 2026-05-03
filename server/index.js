@@ -41,6 +41,140 @@ const isDatabaseSetupError = (error) =>
   );
 
 let databaseBootstrapPromise = null;
+let nextDemoUserId = 5;
+let nextDemoOrderId = 4;
+const demoProducts = [
+  { id: 1, name: "Wireless Headphones", category: "Electronics", price: 99.99, stock_quantity: 150, reorder_level: 20 },
+  { id: 2, name: "Smart Watch", category: "Electronics", price: 299.99, stock_quantity: 75, reorder_level: 10 },
+  { id: 3, name: "Laptop Stand", category: "Accessories", price: 49.99, stock_quantity: 200, reorder_level: 25 },
+  { id: 4, name: "USB Cable", category: "Accessories", price: 9.99, stock_quantity: 500, reorder_level: 50 },
+  { id: 5, name: "Mouse Pad", category: "Accessories", price: 14.99, stock_quantity: 300, reorder_level: 30 }
+];
+const demoOrders = [
+  {
+    id: 1,
+    customer_email: "customer1@example.com",
+    total_amount: 149.98,
+    status: "delivered",
+    order_date: new Date().toISOString(),
+    items: [
+      { product_id: 1, product_name: "Wireless Headphones", quantity: 1, unit_price: 99.99 },
+      { product_id: 3, product_name: "Laptop Stand", quantity: 1, unit_price: 49.99 }
+    ]
+  },
+  {
+    id: 2,
+    customer_email: "customer2@example.com",
+    total_amount: 299.99,
+    status: "shipped",
+    order_date: new Date().toISOString(),
+    items: [
+      { product_id: 2, product_name: "Smart Watch", quantity: 1, unit_price: 299.99 }
+    ]
+  },
+  {
+    id: 3,
+    customer_email: "customer3@example.com",
+    total_amount: 34.97,
+    status: "processing",
+    order_date: new Date().toISOString(),
+    items: [
+      { product_id: 4, product_name: "USB Cable", quantity: 2, unit_price: 9.99 },
+      { product_id: 5, product_name: "Mouse Pad", quantity: 1, unit_price: 14.99 }
+    ]
+  }
+];
+const demoForecast = Array.from({ length: 7 }, (_, index) => ({
+  id: index + 1,
+  forecast_date: new Date(Date.now() + (index + 1) * 86400000).toISOString(),
+  predicted_revenue: 18000 + (index * 850),
+  confidence_level: Number((0.85 - (index * 0.015)).toFixed(2)),
+  model_version: "demo-v1"
+}));
+const demoSalesSummary = Array.from({ length: 30 }, (_, index) => {
+  const date = new Date();
+  date.setDate(date.getDate() - (29 - index));
+  return {
+    date: date.toISOString().split("T")[0],
+    total_revenue: 9000 + (index * 275),
+    total_orders: 18 + (index % 7),
+    total_customers: 12 + (index % 5)
+  };
+});
+const demoUsers = [
+  { id: 1, email: "admin@salesiq.com", password: DEMO_PASSWORD_HASH, role: "admin" },
+  { id: 2, email: "manager@salesiq.com", password: DEMO_PASSWORD_HASH, role: "manager" },
+  { id: 3, email: "analyst@salesiq.com", password: DEMO_PASSWORD_HASH, role: "analyst" },
+  { id: 4, email: "viewer@salesiq.com", password: DEMO_PASSWORD_HASH, role: "viewer" }
+];
+
+const hasBrokenDbHostPlaceholder = () => {
+  const host = (process.env.DB_HOST || "").trim().toLowerCase();
+  return host.includes("your-db-host") || host.includes("<your") || host === "example";
+};
+
+const useDemoMode = () => !db.isConnected() && (!process.env.DATABASE_URL || hasBrokenDbHostPlaceholder());
+
+const getDemoUserByEmail = (email) => demoUsers.find((user) => user.email === email) || null;
+const getTodayKey = () => new Date().toISOString().split("T")[0];
+const getDemoSummaryForDate = (date) => demoSalesSummary.find((entry) => entry.date === date);
+
+const getDemoDashboardSummary = () => {
+  const today = getTodayKey();
+  const todaysSales = getDemoSummaryForDate(today) || {
+    total_revenue: 0,
+    total_orders: 0,
+    total_customers: 0
+  };
+  const inventoryValue = demoProducts.reduce((sum, product) => sum + (product.price * product.stock_quantity), 0);
+  const lowStockItems = demoProducts.filter((product) => product.stock_quantity <= product.reorder_level).length;
+
+  return {
+    total_revenue: Number(todaysSales.total_revenue.toFixed ? todaysSales.total_revenue.toFixed(2) : todaysSales.total_revenue),
+    total_orders: todaysSales.total_orders,
+    total_customers: todaysSales.total_customers,
+    inventory_value: Number(inventoryValue.toFixed(2)),
+    low_stock_items: lowStockItems
+  };
+};
+
+const getDemoInventory = () =>
+  demoProducts.map((product) => ({
+    ...product,
+    needs_reorder: product.stock_quantity <= product.reorder_level
+  }));
+
+const updateDemoSalesSummary = (revenueIncrement, ordersIncrement, customersIncrement) => {
+  const today = getTodayKey();
+  let entry = getDemoSummaryForDate(today);
+
+  if (!entry) {
+    entry = { date: today, total_revenue: 0, total_orders: 0, total_customers: 0 };
+    demoSalesSummary.push(entry);
+    if (demoSalesSummary.length > 30) {
+      demoSalesSummary.shift();
+    }
+  }
+
+  entry.total_revenue = Number((entry.total_revenue + revenueIncrement).toFixed(2));
+  entry.total_orders += ordersIncrement;
+  entry.total_customers += customersIncrement;
+};
+
+const broadcastSalesUpdate = (revenueIncrement, ordersIncrement) => {
+  if (!wss) {
+    return;
+  }
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        type: "SALES_UPDATE",
+        data: { revenueIncrement, ordersIncrement, timestamp: new Date() }
+      }));
+    }
+  });
+};
 
 const getUserByEmail = async (email) => {
   const rows = await db.query("SELECT * FROM users WHERE email = ?", [email]);
@@ -125,6 +259,24 @@ app.post("/api/register", async (req, res) => {
   const { email, password, role = 'viewer' } = req.body;
 
   try {
+    if (useDemoMode()) {
+      const existingUser = getDemoUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User already exists" });
+      }
+
+      const hash = await bcrypt.hash(password, 10);
+      const newUser = { id: nextDemoUserId, email, password: hash, role };
+      nextDemoUserId += 1;
+      demoUsers.push(newUser);
+
+      const token = jwt.sign({ id: newUser.id, role }, SECRET);
+      return res.json({
+        token,
+        user: { id: newUser.id, email, role }
+      });
+    }
+
     const hash = await bcrypt.hash(password, 10);
 
     db.query(
@@ -150,6 +302,21 @@ app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    if (useDemoMode()) {
+      const user = getDemoUserByEmail(email);
+      if (!user) {
+        return res.status(400).json({ message: "User not found" });
+      }
+
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        return res.status(400).json({ message: "Wrong password" });
+      }
+
+      const token = jwt.sign({ id: user.id, role: user.role }, SECRET);
+      return res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
+    }
+
     let user;
 
     try {
@@ -206,6 +373,15 @@ app.post("/api/login", async (req, res) => {
 /* ---------------- DASHBOARD DATA ---------------- */
 
 app.get("/health", async (_req, res) => {
+  if (useDemoMode()) {
+    return res.status(200).json({
+      status: "ok",
+      database: "demo",
+      connectionMode: "demo",
+      reason: "Running with in-memory demo data because database configuration is missing or invalid."
+    });
+  }
+
   try {
     await db.testConnection();
     res.status(200).json({
@@ -226,6 +402,10 @@ app.get("/health", async (_req, res) => {
 
 // Get dashboard summary
 app.get("/api/dashboard/summary", authenticateToken, (req, res) => {
+  if (useDemoMode()) {
+    return res.json(getDemoDashboardSummary());
+  }
+
   const today = new Date().toISOString().split('T')[0];
 
   // Get today's real order totals from manual orders
@@ -260,6 +440,10 @@ app.get("/api/dashboard/summary", authenticateToken, (req, res) => {
 
 // Get sales chart data (last 30 days)
 app.get("/api/dashboard/sales-chart", authenticateToken, (req, res) => {
+  if (useDemoMode()) {
+    return res.json(demoSalesSummary);
+  }
+
   db.query(`
     SELECT date, total_revenue, total_orders
     FROM sales_summary
@@ -273,6 +457,10 @@ app.get("/api/dashboard/sales-chart", authenticateToken, (req, res) => {
 
 // Get inventory data
 app.get("/api/inventory", authenticateToken, authorizeRole(['admin', 'manager']), (req, res) => {
+  if (useDemoMode()) {
+    return res.json(getDemoInventory());
+  }
+
   db.query(`
     SELECT p.*, (p.stock_quantity <= p.reorder_level) as needs_reorder
     FROM products p
@@ -287,6 +475,16 @@ app.get("/api/inventory", authenticateToken, authorizeRole(['admin', 'manager'])
 app.put("/api/inventory/:id", authenticateToken, authorizeRole(['admin', 'manager']), (req, res) => {
   const { stock_quantity } = req.body;
   const productId = req.params.id;
+
+  if (useDemoMode()) {
+    const product = demoProducts.find((item) => item.id === Number(productId));
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    product.stock_quantity = Number(stock_quantity);
+    return res.json({ message: "Inventory updated successfully" });
+  }
 
   db.query(
     "UPDATE products SET stock_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -307,6 +505,10 @@ app.put("/api/inventory/:id", authenticateToken, authorizeRole(['admin', 'manage
 
 // Get revenue forecast
 app.get("/api/forecast", authenticateToken, authorizeRole(['admin', 'manager', 'analyst']), (req, res) => {
+  if (useDemoMode()) {
+    return res.json(demoForecast);
+  }
+
   db.query(`
     SELECT * FROM revenue_forecast
     WHERE forecast_date >= CURRENT_DATE
@@ -320,6 +522,20 @@ app.get("/api/forecast", authenticateToken, authorizeRole(['admin', 'manager', '
 
 // Get all orders
 app.get("/api/orders", authenticateToken, authorizeRole(['admin', 'manager']), (req, res) => {
+  if (useDemoMode()) {
+    return res.json(
+      demoOrders
+        .slice()
+        .sort((a, b) => new Date(b.order_date) - new Date(a.order_date))
+        .map((order) => ({
+          ...order,
+          items: order.items.map((item) =>
+            `${item.product_name} (${item.quantity} x Rs ${item.unit_price})`
+          ).join(", ")
+        }))
+    );
+  }
+
   db.query(`
     SELECT o.*, 
            STRING_AGG(
@@ -340,6 +556,15 @@ app.get("/api/orders", authenticateToken, authorizeRole(['admin', 'manager']), (
 // Get order details
 app.get("/api/orders/:id", authenticateToken, authorizeRole(['admin', 'manager']), (req, res) => {
   const orderId = req.params.id;
+
+  if (useDemoMode()) {
+    const order = demoOrders.find((item) => item.id === Number(orderId));
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    return res.json(order);
+  }
   
   db.query(`
     SELECT o.*, oi.quantity, oi.unit_price, p.name as product_name, p.id as product_id
@@ -375,6 +600,49 @@ app.post("/api/orders", authenticateToken, authorizeRole(['admin', 'manager']), 
   
   if (!customer_email || !items || items.length === 0) {
     return res.status(400).json({ message: 'Customer email and items are required' });
+  }
+
+  if (useDemoMode()) {
+    let totalAmount = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const product = demoProducts.find((entry) => entry.id === Number(item.product_id));
+      if (!product) {
+        return res.status(400).json({ message: `Product ${item.product_id} not found` });
+      }
+      if (product.stock_quantity < item.quantity) {
+        return res.status(400).json({ message: `Insufficient stock for ${product.name}` });
+      }
+
+      totalAmount += product.price * item.quantity;
+      product.stock_quantity -= item.quantity;
+      orderItems.push({
+        product_id: product.id,
+        product_name: product.name,
+        quantity: item.quantity,
+        unit_price: product.price
+      });
+    }
+
+    const orderId = nextDemoOrderId;
+    nextDemoOrderId += 1;
+    demoOrders.unshift({
+      id: orderId,
+      customer_email,
+      total_amount: Number(totalAmount.toFixed(2)),
+      status: "pending",
+      order_date: new Date().toISOString(),
+      items: orderItems
+    });
+    updateDemoSalesSummary(totalAmount, 1, 1);
+    broadcastSalesUpdate(totalAmount, 1);
+
+    return res.status(201).json({
+      message: "Order created successfully",
+      order_id: orderId,
+      total_amount: Number(totalAmount.toFixed(2))
+    });
   }
   
   // Calculate total amount
@@ -493,6 +761,16 @@ app.put("/api/orders/:id/status", authenticateToken, authorizeRole(['admin', 'ma
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ message: 'Invalid status' });
   }
+
+  if (useDemoMode()) {
+    const order = demoOrders.find((item) => item.id === Number(orderId));
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    order.status = status;
+    return res.json({ message: "Order status updated successfully" });
+  }
   
   db.query(
     'UPDATE orders SET status = ? WHERE id = ?',
@@ -518,7 +796,7 @@ let wss;
 
 // Simulate live sales updates
 setInterval(() => {
-  if (!db.isConnected()) {
+  if (!db.isConnected() && !useDemoMode()) {
     return;
   }
 
@@ -527,6 +805,13 @@ setInterval(() => {
   // Random sales increment
   const revenueIncrement = Math.floor(Math.random() * 500) + 100;
   const ordersIncrement = Math.floor(Math.random() * 5) + 1;
+  const customersIncrement = Math.floor(ordersIncrement * 0.8);
+
+  if (useDemoMode()) {
+    updateDemoSalesSummary(revenueIncrement, ordersIncrement, customersIncrement);
+    broadcastSalesUpdate(revenueIncrement, ordersIncrement);
+    return;
+  }
 
   db.query(`
     INSERT INTO sales_summary (date, total_revenue, total_orders, total_customers)
@@ -535,23 +820,13 @@ setInterval(() => {
     total_revenue = sales_summary.total_revenue + EXCLUDED.total_revenue,
     total_orders = sales_summary.total_orders + EXCLUDED.total_orders,
     total_customers = sales_summary.total_customers + EXCLUDED.total_customers
-  `, [today, revenueIncrement, ordersIncrement, Math.floor(ordersIncrement * 0.8)], (err) => {
+  `, [today, revenueIncrement, ordersIncrement, customersIncrement], (err) => {
     if (err) {
       console.error("Sales simulation skipped:", err.message);
       return;
     }
 
-    // Broadcast update to WebSocket clients
-    if (wss) {
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'SALES_UPDATE',
-            data: { revenueIncrement, ordersIncrement, timestamp: new Date() }
-          }));
-        }
-      });
-    }
+    broadcastSalesUpdate(revenueIncrement, ordersIncrement);
   });
 }, 5000); // Update every 5 seconds
 
