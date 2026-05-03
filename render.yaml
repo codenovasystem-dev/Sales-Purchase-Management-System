@@ -1,18 +1,26 @@
 services:
-  - type: static_site
-    name: salesiq-frontend
-    env: static
-    plan: free
-    branch: main
-    root: client
-    buildCommand: npm install && npm run build
-    publishPath: build
-
-  - type: web_service
+  - type: web
     name: salesiq-backend
-    env: node
+    runtime: node
     plan: free
     branch: main
-    root: server
+    rootDir: server
     buildCommand: npm install
     startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PORT
+        value: "3306"
+      - key: CLIENT_URLS
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: JWT_SECRET
+        sync: false

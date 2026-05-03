@@ -71,7 +71,7 @@ function Dashboard() {
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   // Fetch inventory data (for managers/admins)
   const fetchInventory = useCallback(async () => {
@@ -90,7 +90,7 @@ function Dashboard() {
     } catch (error) {
       console.error('Error fetching inventory:', error);
     }
-  }, [user]);
+  }, [API_BASE_URL, user]);
 
   // Fetch forecast data
   const fetchForecast = useCallback(async () => {
@@ -109,7 +109,7 @@ function Dashboard() {
     } catch (error) {
       console.error('Error fetching forecast:', error);
     }
-  }, [user]);
+  }, [API_BASE_URL, user]);
 
   // Fetch orders data (for managers/admins)
   const fetchOrders = useCallback(async () => {
@@ -128,7 +128,7 @@ function Dashboard() {
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  }, [user]);
+  }, [API_BASE_URL, user]);
 
   // Create new order
   const createOrder = async (e) => {
@@ -208,7 +208,7 @@ function Dashboard() {
     return () => {
       websocket.close();
     };
-  }, [fetchDashboardData]);
+  }, [WS_BASE_URL, fetchDashboardData]);
 
   // Initial data fetch
   useEffect(() => {

@@ -6,10 +6,24 @@ const WebSocket = require("ws");
 const db = require("./db");
 
 const app = express();
-app.use(cors());
+const allowedOrigins = (process.env.CLIENT_URLS || process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("CORS origin not allowed"));
+  }
+}));
 app.use(express.json());
 
-const SECRET = "secret123";
+const SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -82,6 +96,10 @@ app.post("/api/login", (req, res) => {
 });
 
 /* ---------------- DASHBOARD DATA ---------------- */
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
 
 // Get dashboard summary
 app.get("/api/dashboard/summary", authenticateToken, (req, res) => {

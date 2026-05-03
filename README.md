@@ -387,30 +387,49 @@ If you find SalesIQ useful, please consider starring this repository. It helps u
 1. Go to https://vercel.com and login with GitHub.
 2. Create a new project and import this repo.
 3. Set the project root to `client`.
-4. Use build command: `npm install && npm run build`.
-5. Use output directory: `build`.
-6. Add environment variable:
-   - `REACT_APP_API_URL=https://<your-backend-url>`
+4. Vercel will detect Create React App automatically.
+5. Add environment variable:
+   - `REACT_APP_API_URL=https://<your-render-backend>.onrender.com`
+6. Deploy and note the public frontend URL.
+
+Optional local config:
+- Use [client/.env.example](/d:/salesiq-saas/client/.env.example:1) as the template for frontend environment variables.
 
 ### Backend with Render
 1. Go to https://render.com and login with GitHub.
-2. Create a new Web Service.
-3. Select the `server` directory as the root.
-4. Set the build command to `npm install`.
-5. Set the start command to `npm start`.
+2. Create a new Blueprint or Web Service from this repository.
+3. Use the root directory `server` if creating the service manually.
+4. Build command: `npm install`
+5. Start command: `npm start`
 6. Add environment variables:
-   - `DB_HOST` = your MySQL host
-   - `DB_USER` = your MySQL user
-   - `DB_PASSWORD` = your MySQL password
-   - `DB_NAME` = salesiq
-   - `JWT_SECRET` = your-secret-key
-7. If using Render's managed database, connect it and update `DB_HOST`/`DB_USER`/`DB_PASSWORD` accordingly.
+   - `DB_HOST`
+   - `DB_PORT`
+   - `DB_USER`
+   - `DB_PASSWORD`
+   - `DB_NAME`
+   - `JWT_SECRET`
+   - `CLIENT_URLS=https://<your-vercel-app>.vercel.app`
+7. Import the database schema from `database/schema.sql` into your MySQL instance.
+8. Confirm the backend health check responds at `/health`.
+
+Optional local config:
+- Use [server/.env.example](/d:/salesiq-saas/server/.env.example:1) as the template for backend environment variables.
+
+### Render Blueprint
+- This repo includes [render.yaml](/d:/salesiq-saas/render.yaml:1) for the backend service.
+- The frontend is intentionally not configured in Render because this deployment path uses Vercel for the React app.
+
+### Final Wiring
+1. Deploy Render first and copy the backend URL.
+2. Set `REACT_APP_API_URL` in Vercel to that backend URL.
+3. Redeploy Vercel after saving the environment variable.
+4. Set `CLIENT_URLS` in Render to your final Vercel domain so browser requests are allowed by CORS.
 
 ### Notes
 - Make sure the frontend `REACT_APP_API_URL` points to the deployed backend URL.
-- The backend uses `process.env.PORT` when deployed.
-- For MySQL, you can use Render/Railway managed MySQL or PlanetScale.
-- This repo includes `render.yaml` for direct Render deployment of frontend and backend from the same repository.
+- The backend uses `process.env.PORT` automatically on Render.
+- The frontend WebSocket URL is derived from `REACT_APP_API_URL`, so `https://...` becomes `wss://...` automatically.
+- For MySQL, you can use Render, Railway, PlanetScale, Neon-compatible MySQL alternatives, or any managed MySQL provider reachable from Render.
 
 ## API Endpoints
 
