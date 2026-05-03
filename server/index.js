@@ -97,11 +97,19 @@ app.post("/api/login", (req, res) => {
 
 /* ---------------- DASHBOARD DATA ---------------- */
 
-app.get("/health", (_req, res) => {
-  res.status(db.isConnected() ? 200 : 503).json({
-    status: db.isConnected() ? "ok" : "degraded",
-    database: db.isConnected() ? "connected" : "disconnected"
-  });
+app.get("/health", async (_req, res) => {
+  try {
+    await db.testConnection();
+    res.status(200).json({
+      status: "ok",
+      database: "connected"
+    });
+  } catch (_error) {
+    res.status(503).json({
+      status: "degraded",
+      database: "disconnected"
+    });
+  }
 });
 
 // Get dashboard summary
