@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Dashboard from "./Dashboard";
+import LandingPage from "./LandingPage";
 
 function App() {
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -7,6 +8,7 @@ function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -15,6 +17,7 @@ function App() {
 
     if (token && userData) {
       setUser(JSON.parse(userData));
+      setShowAuth(false);
     }
   }, []);
 
@@ -59,6 +62,18 @@ function App() {
   };
 
   if (!user) {
+    if (!showAuth) {
+      return (
+        <LandingPage
+          onGetStarted={() => setShowAuth(true)}
+          onViewDemo={() => {
+            // For demo, login as viewer
+            setIsLogin(true);
+            setShowAuth(true);
+          }}
+        />
+      );
+    }
     return (
       <AuthForm
         isLogin={isLogin}
@@ -66,6 +81,7 @@ function App() {
         onSubmit={handleAuth}
         authError={authError}
         isSubmitting={isSubmitting}
+        onBackClick={() => setShowAuth(false)}
       />
     );
   }
@@ -104,7 +120,7 @@ function App() {
   );
 }
 
-function AuthForm({ isLogin, setIsLogin, onSubmit, authError, isSubmitting }) {
+function AuthForm({ isLogin, setIsLogin, onSubmit, authError, isSubmitting, onBackClick }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("viewer");
@@ -129,9 +145,24 @@ function AuthForm({ isLogin, setIsLogin, onSubmit, authError, isSubmitting }) {
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
         width: '400px'
       }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
-          {isLogin ? 'Login to SalesIQ' : 'Register for SalesIQ'}
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+          <h2 style={{ margin: 0 }}>
+            {isLogin ? 'Login to SalesIQ' : 'Register for SalesIQ'}
+          </h2>
+          <button
+            onClick={onBackClick}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#666',
+              cursor: 'pointer',
+              fontSize: '24px'
+            }}
+            title="Back"
+          >
+            ←
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit}>
           {authError && (
