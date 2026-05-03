@@ -24,8 +24,9 @@ ChartJS.register(
 );
 
 function Dashboard() {
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  const WS_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/^http/, 'ws');
+  const isGitHubPages = window.location.hostname.endsWith('github.io');
+  const API_BASE_URL = process.env.REACT_APP_API_URL || (isGitHubPages ? '' : 'http://localhost:5000');
+  const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
   const [summary, setSummary] = useState({});
   const [chartData, setChartData] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -50,6 +51,8 @@ function Dashboard() {
 
   // Fetch dashboard data
   const fetchDashboardData = useCallback(async () => {
+    if (!API_BASE_URL) return;
+
     try {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
@@ -76,6 +79,7 @@ function Dashboard() {
   // Fetch inventory data (for managers/admins)
   const fetchInventory = useCallback(async () => {
     if (!user || !['admin', 'manager'].includes(user.role)) return;
+    if (!API_BASE_URL) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -95,6 +99,7 @@ function Dashboard() {
   // Fetch forecast data
   const fetchForecast = useCallback(async () => {
     if (!user || !['admin', 'manager', 'analyst'].includes(user.role)) return;
+    if (!API_BASE_URL) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -114,6 +119,7 @@ function Dashboard() {
   // Fetch orders data (for managers/admins)
   const fetchOrders = useCallback(async () => {
     if (!user || !['admin', 'manager'].includes(user.role)) return;
+    if (!API_BASE_URL) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -133,6 +139,10 @@ function Dashboard() {
   // Create new order
   const createOrder = async (e) => {
     e.preventDefault();
+    if (!API_BASE_URL) {
+      setOrderMessage('Frontend is live, but order creation requires a deployed backend API.');
+      return;
+    }
     
     try {
       const token = localStorage.getItem('token');
@@ -187,6 +197,8 @@ function Dashboard() {
 
   // WebSocket connection for real-time updates
   useEffect(() => {
+    if (!WS_BASE_URL) return undefined;
+
     const websocket = new WebSocket(`${WS_BASE_URL}`);
 
     websocket.onopen = () => {
@@ -269,6 +281,18 @@ function Dashboard() {
 
   return (
     <div style={{ padding: 30 }}>
+      {!API_BASE_URL && (
+        <div style={{
+          marginBottom: '20px',
+          padding: '14px 16px',
+          borderRadius: '8px',
+          backgroundColor: '#fff8e1',
+          color: '#8a4b00',
+          border: '1px solid #ffd54f'
+        }}>
+          This GitHub Pages deployment shows the real frontend UI, but live dashboard data requires a deployed backend API.
+        </div>
+      )}
       <h1>📊 SalesIQ Analytics Platform</h1>
       <p>Welcome, {user.email} ({user.role})</p>
 

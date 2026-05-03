@@ -3,7 +3,8 @@ import Dashboard from "./Dashboard";
 import LandingPage from "./LandingPage";
 
 function App() {
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const isGitHubPages = window.location.hostname.endsWith("github.io");
+  const API_BASE_URL = process.env.REACT_APP_API_URL || (isGitHubPages ? "" : "http://localhost:5000");
   const [user, setUser] = useState(null);
   const [isLogin, setIsLogin] = useState(true);
   const [authError, setAuthError] = useState("");
@@ -29,6 +30,11 @@ function App() {
     const body = isLogin ? { email, password } : { email, password, role };
 
     try {
+      if (!API_BASE_URL) {
+        setAuthError("Frontend is live, but the backend API is not configured for this deployment yet.");
+        return;
+      }
+
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -49,7 +55,11 @@ function App() {
         setAuthError(data.message || 'Authentication failed. Check email/password and backend status.');
       }
     } catch (error) {
-      setAuthError(`Network error. Please confirm the backend is running on ${API_BASE_URL}.`);
+      setAuthError(
+        API_BASE_URL
+          ? `Network error. Please confirm the backend is running on ${API_BASE_URL}.`
+          : "Frontend is live, but the backend API is not configured for this deployment yet."
+      );
     } finally {
       setIsSubmitting(false);
     }
