@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SalesIQ Deployment Hub</title>
+  <meta
+    name="description"
+    content="SalesIQ deployment hub with setup, documentation, and deployment guidance."
+  >
+  <style>
+    :root {
+      --bg: #f4efe7;
+      --panel: rgba(255, 255, 255, 0.82);
+      --text: #1f2937;
+      --muted: #5b6472;
+      --accent: #ba4a00;
+      --accent-dark: #8f3600;
+      --line: rgba(31, 41, 55, 0.12);
+      --shadow: 0 24px 60px rgba(31, 41, 55, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(186, 74, 0, 0.18), transparent 36%),
+        radial-gradient(circle at bottom right, rgba(20, 83, 45, 0.18), transparent 30%),
+        linear-gradient(135deg, #f8f4ee 0%, #efe3d0 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 18px;
+    }
+
+    .shell {
+      width: min(960px, 100%);
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero {
+      padding: 56px 28px 30px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      font-size: 0.85rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.4rem, 6vw, 4.4rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .lead {
+      width: min(680px, 100%);
+      margin: 22px auto 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      font-size: 1.06rem;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      justify-content: center;
+      margin-top: 28px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 14px 22px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      font-weight: 600;
+      transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+    }
+
+    .button-primary {
+      background: var(--accent);
+      color: #fff9f4;
+    }
+
+    .button-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button-primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      padding: 0 28px 32px;
+    }
+
+    .card {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1.1rem;
+    }
+
+    .card p {
+      margin: 0 0 14px;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.6;
+      color: var(--muted);
+      font-size: 0.96rem;
+    }
+
+    .card a {
+      color: var(--accent-dark);
+      text-decoration: none;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      font-weight: 600;
+    }
+
+    .note {
+      margin: 0 28px 30px;
+      padding: 18px 20px;
+      border-left: 4px solid var(--accent);
+      background: rgba(186, 74, 0, 0.08);
+      border-radius: 14px;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    @media (max-width: 640px) {
+      .hero {
+        padding: 42px 20px 24px;
+      }
+
+      .grid {
+        padding: 0 20px 24px;
+      }
+
+      .note {
+        margin: 0 20px 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">SalesIQ</p>
+      <h1>Sales and Purchase Management System</h1>
+      <p class="lead">
+        This repository is live and documented. The complete application includes a React frontend,
+        Node.js API, and MySQL database, so GitHub Pages can host project information here while
+        the production app is deployed as separate frontend and backend services.
+      </p>
+      <div class="actions">
+        <a class="button button-primary" href="./README.md">Open README</a>
+        <a class="button button-secondary" href="./DEPLOYMENT.md">Deployment Guide</a>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Get Started</h2>
+        <p>Set up the local environment, install dependencies, and run the app stack.</p>
+        <a href="./GETTING_STARTED.md">Read GETTING_STARTED.md</a>
+      </article>
+      <article class="card">
+        <h2>Features</h2>
+        <p>Review analytics, inventory, forecasting, authentication, and order workflows.</p>
+        <a href="./FEATURES.md">Read FEATURES.md</a>
+      </article>
+      <article class="card">
+        <h2>Architecture</h2>
+        <p>Understand the frontend, backend, database, and deployment structure.</p>
+        <a href="./ARCHITECTURE.md">Read ARCHITECTURE.md</a>
+      </article>
+    </section>
+
+    <div class="note">
+      To publish the actual web application, deploy the React frontend build and the Node/MySQL backend separately.
+      GitHub Pages now has a valid root page, which resolves the missing-file error at the repository site URL.
+    </div>
+  </main>
+</body>
+</html>
