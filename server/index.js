@@ -107,6 +107,12 @@ const demoUsers = [
   { id: 3, email: "analyst@salesiq.com", password: DEMO_PASSWORD_HASH, role: "analyst" },
   { id: 4, email: "viewer@salesiq.com", password: DEMO_PASSWORD_HASH, role: "viewer" }
 ];
+let nextSupportTicketId = 1;
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 const hasBrokenDbHostPlaceholder = () => {
   const host = (process.env.DB_HOST || "").trim().toLowerCase();
@@ -161,6 +167,243 @@ const updateDemoSalesSummary = (revenueIncrement, ordersIncrement, customersIncr
   entry.total_customers += customersIncrement;
 };
 
+const getSupportSnapshot = async (user) => {
+  if (useDemoMode()) {
+    return {
+      summary: getDemoDashboardSummary(),
+      lowStockProducts: getDemoInventory()
+        .filter((product) => product.needs_reorder)
+        .slice(0, 5)
+        .map(({ id, name, stock_quantity, reorder_level }) => ({
+          id,
+          name,
+          stock_quantity,
+          reorder_level
+        })),
+      recentOrders: ["admin", "manager"].includes(user.role)
+        ? demoOrders.slice(0, 5).map((order) => ({
+            id: order.id,
+            customer_email: order.customer_email,
+            total_amount: order.total_amount,
+            status: order.status,
+            order_date: order.order_date
+          }))
+        : []
+    };
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const [orderSummary, inventorySummary, lowStockProducts, recentOrders] = await Promise.all([
+    db.query(`
+      SELECT
+        COALESCE(SUM(total_amount), 0) as total_revenue,
+        COUNT(*) as total_orders,
+        COUNT(DISTINCT customer_email) as total_customers
+      FROM orders
+      WHERE DATE(order_date) = ?
+    `, [today]),
+    db.query(`
+      SELECT
+        COALESCE(SUM(price * stock_quantity), 0) as inventory_value,
+        COALESCE(SUM(CASE WHEN stock_quantity <= reorder_level THEN 1 ELSE 0 END), 0) as low_stock_items
+      FROM products
+    `),
+    db.query(`
+      SELECT id, name, stock_quantity, reorder_level
+      FROM products
+      WHERE stock_quantity <= reorder_level
+      ORDER BY stock_quantity ASC
+      LIMIT 5
+    `),
+    ["admin", "manager"].includes(user.role)
+      ? db.query(`
+          SELECT id, customer_email, total_amount, status, order_date
+          FROM orders
+          ORDER BY order_date DESC
+          LIMIT 5
+        `)
+      : Promise.resolve([])
+  ]);
+
+  return {
+    summary: {
+      ...orderSummary[0],
+      inventory_value: inventorySummary[0].inventory_value || 0,
+      low_stock_items: inventorySummary[0].low_stock_items || 0
+    },
+    lowStockProducts,
+    recentOrders
+  };
+};
+
+const formatSupportContext = (snapshot, user) => {
+  const { summary, lowStockProducts, recentOrders } = snapshot;
+  const lowStockText = lowStockProducts.length
+    ? lowStockProducts.map((product) =>
+        `${product.name} (${product.stock_quantity} left, reorder at ${product.reorder_level})`
+      ).join("; ")
+    : "No low-stock alerts.";
+  const orderText = recentOrders.length
+    ? recentOrders.map((order) =>
+        `#${order.id} ${order.customer_email} ${order.status} Rs ${order.total_amount}`
+      ).join("; ")
+    : "No recent order details shared for this role.";
+
+  return [
+    `User role: ${user.role}.`,
+    `Today's revenue: Rs ${summary.total_revenue || 0}.`,
+    `Today's orders: ${summary.total_orders || 0}.`,
+    `Today's customers: ${summary.total_customers || 0}.`,
+    `Inventory value: Rs ${summary.inventory_value || 0}.`,
+    `Low stock count: ${summary.low_stock_items || 0}.`,
+    `Low stock products: ${lowStockText}`,
+    `Recent orders: ${orderText}`
+  ].join(" ");
+};
+
+const shouldSuggestEscalation = (message) =>
+  /(human|agent|manager|urgent|angry|refund|complaint|broken|issue|payment|cancel)/i.test(message || "");
+
+const generateDemoSupportReply = ({ message, context }) => {
+  const summary = context.summary || {};
+  const lowerMessage = (message || "").toLowerCase();
+
+  if (lowerMessage.includes("inventory") || lowerMessage.includes("stock")) {
+    if (context.lowStockProducts?.length) {
+      const products = context.lowStockProducts
+        .map((product) => `${product.name} (${product.stock_quantity} left)`)
+        .join(", ");
+
+      return {
+        reply: `I found ${summary.low_stock_items || 0} low-stock items right now. The most urgent are ${products}. I can also connect you with a human teammate if you want help planning a reorder.`,
+        source: "demo"
+      };
+    }
+
+    return {
+      reply: "Inventory looks healthy right now with no low-stock alerts in the dashboard snapshot. If you want, I can still escalate this to a human teammate for a manual check.",
+      source: "demo"
+    };
+  }
+
+  if (lowerMessage.includes("order") || lowerMessage.includes("customer")) {
+    return {
+      reply: `Today the dashboard shows ${summary.total_orders || 0} orders and ${summary.total_customers || 0} customers. Managers and admins can review the latest orders directly from the dashboard order panel.`,
+      source: "demo"
+    };
+  }
+
+  if (lowerMessage.includes("revenue") || lowerMessage.includes("sales")) {
+    return {
+      reply: `Today's revenue is Rs ${summary.total_revenue || 0} across ${summary.total_orders || 0} orders. The live charts will keep updating as new activity comes in.`,
+      source: "demo"
+    };
+  }
+
+  return {
+    reply: `I can help with sales, inventory, orders, and dashboard usage. Right now I see ${summary.total_orders || 0} orders today and ${summary.low_stock_items || 0} low-stock alerts. Ask me a question, or I can escalate you to a live human teammate.`,
+    source: "demo"
+  };
+};
+
+const callOpenAI = async ({ message, history, user, contextText }) => {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.3,
+      messages: [
+        {
+          role: "system",
+          content: `You are SalesIQ Support Copilot. Give concise, helpful support replies for dashboard users. Use this business context when relevant: ${contextText}`
+        },
+        ...history.map((entry) => ({
+          role: entry.role === "assistant" ? "assistant" : "user",
+          content: String(entry.content || "")
+        })),
+        {
+          role: "user",
+          content: `User email: ${user.email}\nUser role: ${user.role}\nQuestion: ${message}`
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI request failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json();
+  return payload.choices?.[0]?.message?.content?.trim();
+};
+
+const callGemini = async ({ message, history, user, contextText }) => {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{
+            text: `You are SalesIQ Support Copilot. Give concise, helpful support replies for dashboard users. Use this business context when relevant: ${contextText}`
+          }]
+        },
+        contents: [
+          ...history.map((entry) => ({
+            role: entry.role === "assistant" ? "model" : "user",
+            parts: [{ text: String(entry.content || "") }]
+          })),
+          {
+            role: "user",
+            parts: [{
+              text: `User email: ${user.email}\nUser role: ${user.role}\nQuestion: ${message}`
+            }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.3
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini request failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json();
+  return payload.candidates?.[0]?.content?.parts?.map((part) => part.text).join("").trim();
+};
+
+const generateSupportReply = async ({ message, history, user, context }) => {
+  const contextText = formatSupportContext(context, user);
+
+  try {
+    if (OPENAI_API_KEY) {
+      const reply = await callOpenAI({ message, history, user, contextText });
+      if (reply) {
+        return { reply, source: "openai" };
+      }
+    } else if (GEMINI_API_KEY) {
+      const reply = await callGemini({ message, history, user, contextText });
+      if (reply) {
+        return { reply, source: "gemini" };
+      }
+    }
+  } catch (error) {
+    console.error("AI support request failed:", error.message);
+  }
+
+  return generateDemoSupportReply({ message, context });
+};
+
 const broadcastSalesUpdate = (revenueIncrement, ordersIncrement) => {
   if (!wss) {
     return;
@@ -172,6 +415,18 @@ const broadcastSalesUpdate = (revenueIncrement, ordersIncrement) => {
         type: "SALES_UPDATE",
         data: { revenueIncrement, ordersIncrement, timestamp: new Date() }
       }));
+    }
+  });
+};
+
+const broadcastSupportEvent = (type, data) => {
+  if (!wss) {
+    return;
+  }
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ type, data }));
     }
   });
 };
@@ -398,6 +653,75 @@ app.get("/health", async (_req, res) => {
       reason: lastError ? lastError.message : "Unknown database connection error"
     });
   }
+});
+
+app.get("/api/support/health", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    supportApi: true,
+    providers: {
+      openai: Boolean(OPENAI_API_KEY),
+      gemini: Boolean(GEMINI_API_KEY),
+      demoFallback: true
+    }
+  });
+});
+
+app.post("/api/support/chat", authenticateToken, async (req, res) => {
+  const { message, history = [] } = req.body;
+
+  if (!message || !String(message).trim()) {
+    return res.status(400).json({ message: "A support message is required" });
+  }
+
+  try {
+    const context = await getSupportSnapshot(req.user);
+    const result = await generateSupportReply({
+      message: String(message).trim(),
+      history: Array.isArray(history) ? history.slice(-8) : [],
+      user: req.user,
+      context
+    });
+
+    res.json({
+      reply: result.reply,
+      source: result.source,
+      escalationSuggested: shouldSuggestEscalation(message)
+    });
+  } catch (error) {
+    console.error("Support chat failed:", error.message);
+    res.status(500).json({ message: "Unable to process support chat right now" });
+  }
+});
+
+app.post("/api/support/escalate", authenticateToken, async (req, res) => {
+  const { transcript = [], reason = "" } = req.body;
+  const ticketId = `SUP-${String(nextSupportTicketId).padStart(4, "0")}`;
+  nextSupportTicketId += 1;
+
+  const escalation = {
+    ticketId,
+    userEmail: req.user.email,
+    role: req.user.role,
+    reason: String(reason || "Customer requested live support"),
+    transcript: Array.isArray(transcript) ? transcript.slice(-10) : [],
+    createdAt: new Date().toISOString()
+  };
+
+  broadcastSupportEvent("SUPPORT_ESCALATED", escalation);
+
+  setTimeout(() => {
+    broadcastSupportEvent("SUPPORT_AGENT_ASSIGNED", {
+      ticketId,
+      agentName: "Asha",
+      eta: "2 minutes"
+    });
+  }, 2000);
+
+  res.status(201).json({
+    message: "Support escalation created",
+    ticketId
+  });
 });
 
 // Get dashboard summary

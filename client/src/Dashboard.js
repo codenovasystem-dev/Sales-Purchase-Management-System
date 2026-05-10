@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import SupportChatWidget from "./SupportChatWidget";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -588,6 +589,11 @@ function Dashboard() {
       <div style={{ position: 'fixed', top: '20px', right: '20px', backgroundColor: '#4caf50', color: 'white', padding: '10px', borderRadius: '20px', fontSize: '12px' }}>
         🔴 LIVE
       </div>
+      <SupportChatWidget
+        API_BASE_URL={API_BASE_URL}
+        WS_BASE_URL={WS_BASE_URL}
+        user={user}
+      />
     </div>
   );
 }
