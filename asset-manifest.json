@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/Sales-Purchase-Management-System/static/css/main.13eb6417.css",
-    "main.js": "/Sales-Purchase-Management-System/static/js/main.01184368.js",
+    "main.js": "/Sales-Purchase-Management-System/static/js/main.417f6b31.js",
     "index.html": "/Sales-Purchase-Management-System/index.html",
     "main.13eb6417.css.map": "/Sales-Purchase-Management-System/static/css/main.13eb6417.css.map",
-    "main.01184368.js.map": "/Sales-Purchase-Management-System/static/js/main.01184368.js.map"
+    "main.417f6b31.js.map": "/Sales-Purchase-Management-System/static/js/main.417f6b31.js.map"
   },
   "entrypoints": [
     "static/css/main.13eb6417.css",
-    "static/js/main.01184368.js"
+    "static/js/main.417f6b31.js"
   ]
 }
