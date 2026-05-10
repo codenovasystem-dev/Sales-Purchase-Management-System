@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import SupportChatWidget from "./SupportChatWidget";
+import { getApiBaseUrl, getWebSocketBaseUrl } from "./apiConfig";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -25,10 +26,8 @@ ChartJS.register(
 );
 
 function Dashboard() {
-  const isGitHubPages = window.location.hostname.endsWith('github.io');
-  const pagesApiUrl = 'https://sales-purchase-management-system.onrender.com';
-  const API_BASE_URL = process.env.REACT_APP_API_URL || (isGitHubPages ? pagesApiUrl : 'http://localhost:5000');
-  const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
+  const API_BASE_URL = getApiBaseUrl();
+  const WS_BASE_URL = getWebSocketBaseUrl(API_BASE_URL);
   const [summary, setSummary] = useState({});
   const [chartData, setChartData] = useState([]);
   const [inventory, setInventory] = useState([]);
